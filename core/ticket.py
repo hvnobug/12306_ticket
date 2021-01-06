@@ -1,5 +1,6 @@
 import time
 
+from selenium.common.exceptions import ElementClickInterceptedException
 from selenium.webdriver.support.select import Select
 
 import config
@@ -242,9 +243,12 @@ class Ticket:
             now = datetime.now().strftime('%H:%M:%S')
             # 判断是否在预约时间内
             if config.start_time <= now <= config.end_time:
-                count += 1
-                wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'query_ticket'))).click()
+                try:
+                    wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'query_ticket'))).click()
+                except ElementClickInterceptedException:
+                    continue
                 time.sleep(0.5)
+                count += 1
                 console.print(f':vampire: 第 [red]{count}[/red] 次点击查询 . . .')
                 self._check_ticket()
             else:
