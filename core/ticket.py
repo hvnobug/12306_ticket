@@ -1,4 +1,7 @@
 import time
+
+from selenium.webdriver.support.select import Select
+
 import config
 import random
 from core import browser
@@ -23,6 +26,48 @@ seat_type_dict = {
     "无座": "WZ",
     "其他": "QT"
 }
+
+
+def _get_seat_type_index_value(seat_type):
+    if seat_type == '商务座':
+        seat_type_index = 1
+        seat_type_value = 9
+    elif seat_type == '一等座':
+        seat_type_index = 2
+        seat_type_value = 'M'
+    elif seat_type == '二等座':
+        seat_type_index = 3
+        seat_type_value = 0
+    elif seat_type == '高级软卧':
+        seat_type_index = 4
+        seat_type_value = 6
+    elif seat_type == '软卧':
+        seat_type_index = 5
+        seat_type_value = 4
+    elif seat_type == '动卧':
+        seat_type_index = 6
+        seat_type_value = 'F'
+    elif seat_type == '硬卧':
+        seat_type_index = 7
+        seat_type_value = 3
+    elif seat_type == '软座':
+        seat_type_index = 8
+        seat_type_value = 2
+    elif seat_type == '硬座':
+        seat_type_index = 9
+        seat_type_value = 1
+    elif seat_type == '无座':
+        seat_type_index = 10
+        seat_type_value = 1
+    elif seat_type == '其他':
+        seat_type_index = 11
+        seat_type_value = 1
+    else:
+        seat_type_index = 7
+        seat_type_value = 3
+    return seat_type_index, seat_type_value
+
+
 ticket_url = 'https://kyfw.12306.cn/otn/leftTicket/init'
 
 
@@ -31,9 +76,8 @@ def _look_up_station():
     读取车站信息
     :return:
     """
-    # 文件来自 https://kyfw.12306.cn/otn/resources/js/framework/favorite_name.js
     import os
-    path = os.path.join(os.path.dirname(__file__), '../favorite_name.js')
+    path = os.path.join(os.path.dirname(__file__), '../station_names.js')
     try:
         with open(path, encoding="utf-8") as result:
             info = result.read().split('=')[1].strip("'").split('@')
@@ -107,7 +151,8 @@ def _md_ticket_info(ti):
         f'* **{headers[1]}:** {ti["time"]}',
         f'* **{headers[2]}:** {ti["address"]}',
         f'* **{headers[3]}:** {ti["seat_type"]}',
-        f'* **{headers[4]}:** {ti["value"]}'
+        f'* **{headers[4]}:** {ti["value"]}',
+        f'* **乘坐人:** {str.join(",", ti["passengers"])}',
     ])
 
 
@@ -223,15 +268,37 @@ class Ticket:
         """
         time.sleep(0.5)
         passenger_list = browser.find_els_if_exist('#normal_passenger_id > li')
+        # 选择乘坐人
+        passenger_index = 1
+        self._ticket_info['passengers'] = []
         for passenger in config.passengers:
             for passenger_li in passenger_list:
                 passenger_input = passenger_li.find_element_by_tag_name('input')
-                if passenger_li.find_element_by_tag_name('label').text == passenger \
-                        and not passenger_input.is_selected():
+                if passenger_li.find_element_by_tag_name('label').text == passenger:
+                    console.print(f"选择乘坐人 [{passenger}] . . .")
+                    self._ticket_info['passengers'].append(passenger)
                     passenger_input.click()
+                    warning_alert = browser.find_el_if_exist('content_defaultwarningAlert_id', by=By.ID)
+                    if warning_alert:
+                        warning_alert.find_element_by_id('qd_closeDefaultWarningWindowDialog_id').click()
+                        time.sleep(0.5)
+                    # 选择席座
+                    console.print(f"开始选择席座 [{self._ticket_info['seat_type']}] . . .")
+                    seat_select = browser.find_element_by_id(f"seatType_{str(passenger_index)}")
+                    _, seat_type_value = _get_seat_type_index_value(self._ticket_info['seat_type'])
+                    if seat_type_value != 0:
+                        Select(seat_select).select_by_value(str(seat_type_value))
+                    passenger_index += 1
+                    time.sleep(0.5)
+        if passenger_index == 1:
+            console.print("未找到乘客信息 ... 提交订单失败", style="bold red")
+        print('正在提交订单 . . .')
         wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'submitOrder_id'))).click()
+        print('正在确认订单 . . .')
         wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'qr_submit_id'))).click()
         # 截取屏幕,订单信息页
+        print('预订成功,正在截取屏幕 . . .')
+        time.sleep(5)
         browser.screenshot(
             f'{self.fs}_{self.ts}_{config.from_time.replace("-", "")}_{self._ticket_info["train"].lower()}.png'
         )
@@ -270,7 +337,6 @@ class Ticket:
                                     ticket_info['value'] = seat_el.text
                                     self._ticket_info = ticket_info
                                     console.print(_table_ticket_info(ticket_info))
-                                    print(_md_ticket_info(ticket_info))
                                     submit_btn.click()
                                     return True
                                 return False
@@ -278,13 +344,16 @@ class Ticket:
                             seat_div = browser.find_el_if_exist(seat_selector + ' > div')
                             if try_submit(seat_div if seat_div else seat):
                                 return True
-                            console.print(":vampire:", f"{config.from_time} - {seat_type}", "[red]暂无余票[/red]")
+                    console.print(f":vampire: {config.from_time} - {train_name} - {seat_type}", "[red]暂无余票[/red]")
+        else:
+            console.print(f":vampire: {config.from_time} - {train_name}", "[red]暂无余票[/red]")
         return False
 
     def _check_ticket(self):
         """
         检查是否有余票
         """
+        exist_train = False
         left_tr_list = browser.find_els_if_exist('#queryLeftTable > tr')
         for index in range(len(left_tr_list)):
             # 跳过空表格行
@@ -294,5 +363,11 @@ class Ticket:
                 train_name = train_tr.get_attribute('datatran')
                 for t in config.trains:
                     if t == train_name:
+                        exist_train = True
                         if self._try_submit(index, left_tr, train_name):
                             return
+        if not exist_train:
+            console.print(
+                ':vampire: [yellow]未查询到车次信息[/yellow]: ',
+                config.from_time, f"[{str.join(',', config.trains)}]"
+            )

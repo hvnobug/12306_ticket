@@ -48,7 +48,7 @@ class Captcha:
             # perform()立即执行动作链操作
             # move_by_offset(x,y):x水平方向 y竖直方向
             try:
-                action.move_by_offset(250, 0).perform()  # 速度为30mm
+                action.move_by_offset(350, 0).perform()  # 速度为30mm
             except WebDriverException:
                 time.sleep(0.5)
         time.sleep(0.5)
@@ -107,5 +107,5 @@ def code_xy(select):
         post.append(offsets_x)
         post.append(offsets_y)
     rand_code = str(post).replace(']', '').replace('[', '').replace("'", '').replace(' ', '')
-    console.print(":thumbs_up:", f"验证码识别成功: [{rand_code}]")
+    console.print(f":thumbs_up: 验证码识别成功: [{rand_code}]")
     return rand_code

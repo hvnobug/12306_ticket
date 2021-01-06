@@ -117,4 +117,4 @@ class Browser(webdriver.Chrome):
     def screenshot(self, file_name=f'{int(time.time() * 1000)}.png'):
         time.sleep(5)
         # 截图
-        self.save_screenshot(f'./screenshot/{file_name}')
+        self.save_screenshot(f'./{file_name}')
