@@ -243,7 +243,7 @@ class Ticket:
             # 判断是否在预约时间内
             if config.start_time <= now <= config.end_time:
                 count += 1
-                browser.find_element_by_id('query_ticket').click()
+                wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'query_ticket'))).click()
                 time.sleep(0.5)
                 console.print(f':vampire: 第 [red]{count}[/red] 次点击查询 . . .')
                 self._check_ticket()
