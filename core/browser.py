@@ -68,6 +68,9 @@ def get_random_ua():
 # 解决放镜像里 DevToolsActivePort file doesn't exist的问题
 options = webdriver.ChromeOptions()
 options.add_argument(f'--user-agent={get_random_ua()}')
+# 关闭自动测试状态显示 // 会导致浏览器报：请停用开发者模式
+# window.navigator.webdriver还是返回True,当返回undefined时应该才可行。
+options.add_experimental_option("excludeSwitches", ['enable-automation'])
 
 
 class Browser(webdriver.Chrome):
@@ -76,9 +79,28 @@ class Browser(webdriver.Chrome):
         # 浏览器最大化，也可以不设置
         self.maximize_window()
 
-    def _modify_webdriver(self):
-        # 通过代码注入的方式进行修改 webdriver 的值。
-        self.execute_script('Object.defineProperties(navigator,{webdriver:{get:() => false}});')
+    # 通过代码注入的方式进行修改 webdriver,languages,plugins 的值。以达到防检测的目的。
+    def _anti_detection(self):
+        # 改写 `languages`
+        self.execute_script("""
+        Object.defineProperty(navigator, "languages", {
+          get: function() {
+            return ["en", "es"];
+          }
+        });
+        """)
+        # 改写 `plugins`
+        self.execute_script("""
+        Object.defineProperty(navigator, "plugins", {
+          get: () => new Array(Math.floor(Math.random() * 6) + 1),
+        });
+        """)
+        # 改写`webdriver`
+        self.execute_script("""
+        Object.defineProperty(navigator, "webdriver", {
+          get: () => false,
+        });
+        """)
         self.execute_script('window.document.documentElement.getAttribute("webdriver");')
 
     def get(self, url):
@@ -86,8 +108,7 @@ class Browser(webdriver.Chrome):
         Loads a web page in the current browser session.
         """
         super().get(url)
-        time.sleep(0.5)
-        self._modify_webdriver()
+        self._anti_detection()
 
     def refresh(self):
         """
@@ -97,7 +118,7 @@ class Browser(webdriver.Chrome):
             driver.refresh()
         """
         super().refresh()
-        self._modify_webdriver()
+        self._anti_detection()
 
     # 封装一个函数，用来判断属性值是否存在
     def find_el_if_exist(self, value, by=By.CSS_SELECTOR):

@@ -14,6 +14,7 @@ from core import browser, tk, ticket_url, pay_order_url
 from core.login import has_login
 from utils import console
 from utils.message import send_mail, send_server_chan
+from utils.time import datetime_format_str, time_format_str, date_format_str
 
 
 class Ticket:
@@ -62,12 +63,23 @@ class Ticket:
                 return
             # 检查是否出错
             browser.check_error_page()
+
             # 随机休眠 0.3-1 秒
             # random_time = random.randint(300, 1000) / 1000
             # time.sleep(random_time)
-            now = datetime.now().strftime('%H:%M:%S')
+
+            # 把开始时间,结束时间字符串转换为日期
+            now = datetime.now()
+
+            def convert_time_to_datetime(time_str):
+                now_date_str = now.strftime(date_format_str)
+                return datetime.strptime(f"{now_date_str} {time_str}", datetime_format_str)
+
+            start_ts = convert_time_to_datetime(config.start_time).timestamp()
+            end_ts = convert_time_to_datetime(config.end_time).timestamp()
+            now_ts = now.timestamp()
             # 判断是否在预约时间内
-            if config.start_time <= now <= config.end_time:
+            if (start_ts - 120) <= now_ts <= end_ts:
                 try:
                     wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'query_ticket'))).click()
                 except ElementClickInterceptedException:
@@ -77,12 +89,28 @@ class Ticket:
                 console.print(":raccoon:", f'第 [red]{count}[/red] 次点击查询 . . .')
                 self._check_ticket()
             else:
+                # 使用睡眠方案,提前两分钟唤醒,登录超时会自动登录
+                """
                 # 为了防止长时间不操作,session 失效
                 now_timestamp = datetime.now().timestamp()
                 if last_refresh_time - now_timestamp >= 180:
                     last_refresh_time = now_timestamp
                     console.print(":raccoon:", f'[{now}] 刷新浏览器')
                     browser.refresh()
+                """
+                # 取今天日期 当前时间小于开始抢票时间
+                now_time_str = now.strftime(time_format_str)
+                if now_time_str < config.start_time:
+                    date_str = now.strftime(date_format_str)
+                # 取明天的日期
+                else:
+                    tomorrow = datetime.fromtimestamp(now.timestamp() + 60 * 60 * 24)
+                    date_str = tomorrow.strftime(date_format_str)
+                next_run_datetime = datetime.strptime(f"{date_str} {config.start_time}", datetime_format_str)
+                sleep_second = next_run_datetime.timestamp() - now.timestamp() - 120
+                console.print("未到达开始开放抢票时间,程序即将休眠 ... ", style="bold yellow")
+                console.print(f"程序将于 [{next_run_datetime.strftime(datetime_format_str)}] 重新启动 !", style="bold green")
+                time.sleep(sleep_second)
         # 创建订单
         self._create_order()
         message = "恭喜您，抢到票了，请及时前往12306支付订单！"
@@ -153,14 +181,14 @@ class Ticket:
             if check_el and check_el.is_displayed():
                 check_text = check_el.find_element_by_id('sy_ticket_num_id').text
                 console.print(check_text, style="bold red")
-                sys.exit(-1)
+                raise
             # 订单提交失败会出现提示框
             notice_el = browser.find_el_if_exist('content_transforNotice_id', by=By.ID)
             if notice_el and notice_el.is_displayed():
                 title = browser.find_element_by_css_selector('#orderResultInfo_id > div > span').text
                 content = notice_el.find_element_by_tag_name('p').text
                 console.print(f'[red]{title}[/red]', content)
-                sys.exit(-1)
+                raise
         # 截取屏幕,订单信息页
         print('预订成功,正在截取屏幕 . . .')
         browser.screenshot(
