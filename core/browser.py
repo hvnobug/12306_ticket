@@ -70,18 +70,16 @@ options = webdriver.ChromeOptions()
 options.add_argument(f'--user-agent={get_random_ua()}')
 
 
-# import os
-# if os.name != 'nt' and config.CHROME_CHROME_PATH:
-#     options.binary_location = config.CHROME_CHROME_PATH
-#     options.add_argument("--no-sandbox")
-#     options.add_argument("--headless")
-
-
 class Browser(webdriver.Chrome):
     def __init__(self):
-        super().__init__(chrome_options=options, executable_path=config.CHROME_PATH)
+        super().__init__(chrome_options=options, executable_path=config.chrome_path)
         # 浏览器最大化，也可以不设置
         self.maximize_window()
+
+    def _modify_webdriver(self):
+        # 通过代码注入的方式进行修改 webdriver 的值。
+        self.execute_script('Object.defineProperties(navigator,{webdriver:{get:() => false}});')
+        self.execute_script('window.document.documentElement.getAttribute("webdriver");')
 
     def get(self, url):
         """
@@ -89,9 +87,17 @@ class Browser(webdriver.Chrome):
         """
         super().get(url)
         time.sleep(0.5)
-        # 通过代码注入的方式进行修改 webdriver 的值。
-        self.execute_script('Object.defineProperties(navigator,{webdriver:{get:() => false}});')
-        self.execute_script('window.document.documentElement.getAttribute("webdriver");')
+        self._modify_webdriver()
+
+    def refresh(self):
+        """
+        Refreshes the current page.
+
+        :Usage:
+            driver.refresh()
+        """
+        super().refresh()
+        self._modify_webdriver()
 
     # 封装一个函数，用来判断属性值是否存在
     def find_el_if_exist(self, value, by=By.CSS_SELECTOR):
@@ -116,9 +122,10 @@ class Browser(webdriver.Chrome):
             return None
 
     def screenshot(self, file_name=f'{int(time.time() * 1000)}.png'):
-        time.sleep(5)
         # 截图
-        self.save_screenshot(f'./{file_name}')
+        import os
+        path = os.path.join(os.path.dirname(__file__), f'../{file_name}')
+        self.save_screenshot(path)
 
     def check_error_page(self):
         from core import error_page

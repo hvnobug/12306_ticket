@@ -1,8 +1,9 @@
-import random
+import re
 import sys
 import time
 from datetime import datetime
-from selenium.common.exceptions import ElementClickInterceptedException, TimeoutException
+
+from selenium.common.exceptions import ElementClickInterceptedException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support import wait
@@ -24,8 +25,6 @@ class Ticket:
     def _init(self):
         fs, ts = tk.look_up_station()
         self.fs, self.ts = fs, ts
-        time.sleep(0.5)
-        browser.get(ticket_url)
 
         def to_unicode(s):
             """
@@ -49,9 +48,9 @@ class Ticket:
             "name": "_jc_save_fromDate", "value": config.from_time,
             "path": "/", "domain": cookie_domain
         })
-        # 刷新浏览器,表单会自动根据 cookie 信息填充
-        browser.refresh()
+        # 设置完 cookie 后,表单会自动根据 cookie 信息填充
         time.sleep(0.5)
+        browser.get(ticket_url)
 
     def check(self):
         count = 0
@@ -64,8 +63,8 @@ class Ticket:
             # 检查是否出错
             browser.check_error_page()
             # 随机休眠 0.3-1 秒
-            random_time = random.randint(300, 1000) / 1000
-            time.sleep(random_time)
+            # random_time = random.randint(300, 1000) / 1000
+            # time.sleep(random_time)
             now = datetime.now().strftime('%H:%M:%S')
             # 判断是否在预约时间内
             if config.start_time <= now <= config.end_time:
@@ -75,14 +74,14 @@ class Ticket:
                     continue
                 time.sleep(0.5)
                 count += 1
-                console.print(f':vampire: 第 [red]{count}[/red] 次点击查询 . . .')
+                console.print(":raccoon:", f'第 [red]{count}[/red] 次点击查询 . . .')
                 self._check_ticket()
             else:
                 # 为了防止长时间不操作,session 失效
                 now_timestamp = datetime.now().timestamp()
                 if last_refresh_time - now_timestamp >= 180:
                     last_refresh_time = now_timestamp
-                    console.print(f':raccoon: [{now}] 刷新浏览器')
+                    console.print(":raccoon:", f'[{now}] 刷新浏览器')
                     browser.refresh()
         # 创建订单
         self._create_order()
@@ -94,7 +93,7 @@ class Ticket:
         # 发送 server 酱通知
         if config.server_chan['enable'] is True:
             send_server_chan(tk.md_ticket_info(self._ticket_info))
-        sys.exit()
+        sys.exit(0)
 
     def _create_order(self):
         """
@@ -141,25 +140,29 @@ class Ticket:
         if notice_el and notice_el.is_displayed():
             notice_content = browser.find_element_by_css_selector('#orderResultInfo_id > div > span').text
             console.print("确认订单失败:", notice_content, style="bold yellow")
-            sys.exit(-2)
+            sys.exit(-1)
         try:
             # 确认提交订单
             print('正在确认订单 . . .')
             wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'qr_submit_id'))).click()
-            # 等待跳转到支付页面, 如果超时未跳转, 说明订单生产失败
+            # 等待跳转到支付页面, 如果超时未跳转, 说明订单生成失败
             wait.WebDriverWait(browser, 10).until(lambda driver: driver.current_url.startswith(pay_order_url))
-        except TimeoutException as e:
-            print(e)
+        except WebDriverException:
+            # 核信息对话框,当确认订单按钮不可用
+            check_el = browser.find_el_if_exist('content_checkticketinfo_id', by=By.ID)
+            if check_el and check_el.is_displayed():
+                check_text = check_el.find_element_by_id('sy_ticket_num_id').text
+                console.print(check_text, style="bold red")
+                sys.exit(-1)
+            # 订单提交失败会出现提示框
             notice_el = browser.find_el_if_exist('content_transforNotice_id', by=By.ID)
-            if notice_el:
+            if notice_el and notice_el.is_displayed():
                 title = browser.find_element_by_css_selector('#orderResultInfo_id > div > span').text
                 content = notice_el.find_element_by_tag_name('p').text
                 console.print(f'[red]{title}[/red]', content)
-                sys.exit(1)
-
+                sys.exit(-1)
         # 截取屏幕,订单信息页
         print('预订成功,正在截取屏幕 . . .')
-        time.sleep(5)
         browser.screenshot(
             f'{self.fs}_{self.ts}_{config.from_time.replace("-", "")}_{self._ticket_info["train"].lower()}.png'
         )
@@ -190,11 +193,11 @@ class Ticket:
 
                             # 判断是否有余票,如果有余票就尝试提交
                             def try_submit(seat_el):
-                                if seat_el.text and seat_el.text is not '无' \
-                                        and seat_el.text is not '--':
+                                seat_text = seat_el.text
+                                if seat_text == '有' or re.match("^\\d+$", seat_text):
                                     self._running = False
                                     ticket_info['seat_type'] = seat_type
-                                    ticket_info['value'] = seat_el.text
+                                    ticket_info['value'] = seat_text
                                     self._ticket_info = ticket_info
                                     console.print(tk.table_ticket_info(ticket_info))
                                     submit_btn.click()
@@ -234,6 +237,6 @@ class Ticket:
                 train_row_index += 1
         if not exist_train:
             console.print(
-                ':vampire: [yellow]未查询到车次信息[/yellow]: ',
+                ':raccoon: [yellow]未查询到车次信息[/yellow]: ',
                 config.from_time, f"[{str.join(',', config.trains)}]"
             )
