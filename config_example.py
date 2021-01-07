@@ -35,7 +35,6 @@ server_chan = {
     "enable": False,
     "secret": ""
 }
-
 # 出发时间
 from_time = '2021-01-22'
 # 选择车次
@@ -52,10 +51,9 @@ password = '123456'
 from_station = '上海'
 # 目的地
 to_station = '北京'
-
 # 开始售票时间
 start_time = '05:00:00'
 # 停止售票时间
 end_time = '23:00:00'
 # ChromeDriver 运行路径
-CHROME_PATH = 'D:\\chromedriver.exe'
+chrome_path = 'D:\\chromedriver.exe'

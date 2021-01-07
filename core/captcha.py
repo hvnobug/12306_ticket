@@ -100,7 +100,7 @@ def slider_captcha():
     while div and div.is_displayed():
         if try_time > 10:
             console.print('滑块验证码验证失败 . . .', style='bold red')
-            sys.exit(-3)
+            sys.exit(-1)
         # 动作链
         action = ActionChains(browser)
         # 点击长按指定的标签

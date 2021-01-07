@@ -1,5 +1,8 @@
 import sys
 import time
+
+from selenium.common.exceptions import TimeoutException
+
 import config
 from core import browser, index_page, ticket_url, login_page
 from core.captcha import Captcha, slider_captcha
@@ -15,7 +18,7 @@ def _init():
     time.sleep(1)
     if browser.find_el_if_exist('ERROR', by=By.ID) is not None:
         console.print('[red]12306请求过于频繁,请稍等重试 . . . [/red]')
-        sys.exit(1)
+        sys.exit(-1)
     # 等待用户密码登录按钮可以点击,切换到用户密码登录 Tab
     wait.WebDriverWait(browser, 5).until(
         ec.element_to_be_clickable((By.CLASS_NAME, 'login-hd-account'))).click()
@@ -51,5 +54,10 @@ class Login:
         time.sleep(0.5)
         # 验证滑块验证码
         slider_captcha()
-        # 等待跳转到首页
-        wait.WebDriverWait(browser, 10).until(lambda driver: driver.current_url.startswith(index_page))
+        try:
+            # 等待跳转到首页
+            wait.WebDriverWait(browser, 10).until(lambda driver: driver.current_url.startswith(index_page))
+        except TimeoutException as e:
+            print(e)
+            console.print("登录失败,请稍后重试 . . .", style="bold red")
+            sys.exit(-1)
