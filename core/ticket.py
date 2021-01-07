@@ -12,7 +12,7 @@ import config
 from core import browser, tk, ticket_url, pay_order_url
 from core.login import has_login
 from utils import console
-from utils.message import send_mail, send_ftqq
+from utils.message import send_mail, send_server_chan
 
 
 class Ticket:
@@ -61,8 +61,9 @@ class Ticket:
             # 检查时候登录失效, 判断是否存在登出按钮
             if not has_login():
                 return
-            # 检查是否出错比如
+            # 检查是否出错
             browser.check_error_page()
+            # 随机休眠 0.3-1 秒
             random_time = random.randint(300, 1000) / 1000
             time.sleep(random_time)
             now = datetime.now().strftime('%H:%M:%S')
@@ -87,10 +88,12 @@ class Ticket:
         self._create_order()
         message = "恭喜您，抢到票了，请及时前往12306支付订单！"
         console.print(f":smiley: {message}")
-        if config.mail['enable'] is True:
-            send_mail(message)
-        if config.ftqq_server['enable'] is True:
-            send_ftqq(tk.md_ticket_info(self._ticket_info))
+        # 发送通知邮件
+        if config.email['enable'] is True:
+            send_mail(tk.html_ticket_info(self._ticket_info), html=True)
+        # 发送 server 酱通知
+        if config.server_chan['enable'] is True:
+            send_server_chan(tk.md_ticket_info(self._ticket_info))
         sys.exit()
 
     def _create_order(self):
@@ -119,21 +122,34 @@ class Ticket:
                     # 选择席座
                     console.print(f"开始选择席座 [{self._ticket_info['seat_type']}] . . .")
                     seat_select = browser.find_element_by_id(f"seatType_{str(passenger_index)}")
-                    _, seat_type_value = tk.get_seat_type_index_value(self._ticket_info['seat_type'])
-                    if seat_type_value != 0:
-                        Select(seat_select).select_by_value(str(seat_type_value))
+                    seat_type = tk.seat_type_dict[self._ticket_info['seat_type']]
+                    if not seat_type:
+                        console.print(f"未找到坐席类型 :[red] {seat_type} [/red]")
+                        sys.exit(-1)
+                    seat_type_value = seat_type['value']
+                    if seat_type_value != '0':
+                        Select(seat_select).select_by_value(seat_type_value)
                     passenger_index += 1
                     time.sleep(0.5)
         if passenger_index == 1:
             console.print("未找到乘客信息 ... 无法选择乘客和坐席", style="bold red")
         print('正在提交订单 . . .')
         wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'submitOrder_id'))).click()
-        print('正在确认订单 . . .')
+        time.sleep(1)
+        # 通知对话框
+        notice_el = browser.find_el_if_exist('content_transforNotice_id', by=By.ID)
+        if notice_el and notice_el.is_displayed():
+            notice_content = browser.find_element_by_css_selector('#orderResultInfo_id > div > span').text
+            console.print("确认订单失败:", notice_content, style="bold yellow")
+            sys.exit(-2)
         try:
+            # 确认提交订单
+            print('正在确认订单 . . .')
             wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'qr_submit_id'))).click()
             # 等待跳转到支付页面, 如果超时未跳转, 说明订单生产失败
             wait.WebDriverWait(browser, 10).until(lambda driver: driver.current_url.startswith(pay_order_url))
         except TimeoutException as e:
+            print(e)
             notice_el = browser.find_el_if_exist('content_transforNotice_id', by=By.ID)
             if notice_el:
                 title = browser.find_element_by_css_selector('#orderResultInfo_id > div > span').text
@@ -164,7 +180,7 @@ class Ticket:
                 # 座位类型是否匹配
                 for seat_type in config.seat_types:
                     if tk.seat_type_dict[seat_type]:
-                        seat_selector = '#' + tk.seat_type_dict[seat_type] + '_' + serial_num
+                        seat_selector = '#' + tk.seat_type_dict[seat_type]["code"] + '_' + serial_num
                         seat = left_tr.find_element_by_css_selector(seat_selector)
                         if seat:
                             ticket_info = {
@@ -188,6 +204,9 @@ class Ticket:
                             seat_div = browser.find_el_if_exist(seat_selector + ' > div')
                             if try_submit(seat_div if seat_div else seat):
                                 return True
+                    else:
+                        console.print(f"未找到坐席类型 :[red] {seat_type} [/red]")
+                        sys.exit(-1)
                     console.print(f":vampire: {config.from_time} - {train_name} - {seat_type}", "[red]暂无余票[/red]")
         else:
             console.print(f":vampire: {config.from_time} - {train_name}", "[red]暂无余票[/red]")

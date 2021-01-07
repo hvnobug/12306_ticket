@@ -7,58 +7,62 @@ _ticket_info_headers = [
 ]
 
 seat_type_dict = {
-    "商务座": "SWZ",
-    "一等座": "ZY",
-    "二等座": "ZE",
-    "高级软卧": "GR",
-    "软卧": "RW",
-    "动卧": "SRRB",
-    "硬卧": "YW",
-    "软座": "RZ",
-    "硬座": "YZ",
-    "无座": "WZ",
-    "其他": "QT"
+    "商务座": {
+        "code": "SWZ",
+        "index": 1,
+        "value": "9"
+    },
+    "一等座": {
+        "code": "ZY",
+        "index": 2,
+        "value": "M"
+    },
+    "二等座": {
+        "code": "ZE",
+        "index": 3,
+        "value": "0"
+    },
+    "高级软卧": {
+        "code": "GR",
+        "index": 4,
+        "value": "6"
+    },
+    "软卧": {
+        "code": "RW",
+        "index": 5,
+        "value": "4"
+    },
+    "动卧": {
+        "code": "SRRB",
+        "index": 6,
+        "value": "F"
+    },
+    "硬卧": {
+        "code": "YW",
+        "index": 7,
+        "value": "3"
+    },
+    "软座": {
+        "code": "RZ",
+        "index": 8,
+        "value": "2"
+    },
+    "硬座": {
+        "code": "YZ",
+        "index": 9,
+        "value": "1"
+    },
+    "无座": {
+        "code": "WZ",
+        "index": 10,
+        "value": "1"
+    },
+    "其他": {
+        "code": "QT",
+        "index": 11,
+        "value": "1"
+    }
 }
-
-
-def get_seat_type_index_value(seat_type):
-    if seat_type == '商务座':
-        seat_type_index = 1
-        seat_type_value = 9
-    elif seat_type == '一等座':
-        seat_type_index = 2
-        seat_type_value = 'M'
-    elif seat_type == '二等座':
-        seat_type_index = 3
-        seat_type_value = 0
-    elif seat_type == '高级软卧':
-        seat_type_index = 4
-        seat_type_value = 6
-    elif seat_type == '软卧':
-        seat_type_index = 5
-        seat_type_value = 4
-    elif seat_type == '动卧':
-        seat_type_index = 6
-        seat_type_value = 'F'
-    elif seat_type == '硬卧':
-        seat_type_index = 7
-        seat_type_value = 3
-    elif seat_type == '软座':
-        seat_type_index = 8
-        seat_type_value = 2
-    elif seat_type == '硬座':
-        seat_type_index = 9
-        seat_type_value = 1
-    elif seat_type == '无座':
-        seat_type_index = 10
-        seat_type_value = 1
-    elif seat_type == '其他':
-        seat_type_index = 11
-        seat_type_value = 1
-    else:
-        seat_type_index = 7
-        seat_type_value = 3
-    return seat_type_index, seat_type_value
 
 
 def look_up_station():
@@ -162,6 +166,27 @@ def table_ticket_info(ti):
     )
     table.highlight = True
     return table
+
+
+def html_ticket_info(ti):
+    headers = _ticket_info_headers
+
+    def render_li(k, v):
+        return f'<li><strong style="margin-right:5px;">{k}:</strong>{v}</li>'
+
+    return f"""
+    <h3>抢票成功!</h3>
+    <div>
+        <ul>
+            {render_li(headers[0], ti["train"])}
+            {render_li(headers[1], ti["time"])}
+            {render_li(headers[2], ti["address"])}
+            {render_li(headers[3], ti["duration"])}
+            {render_li(headers[4], ti["seat_type"])}
+            {render_li('乘坐人', str.join(",", ti["passengers"]))}
+        </ul>
+    </div>
+    """
 
 
 def get_train_info(index):

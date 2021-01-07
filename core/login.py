@@ -2,11 +2,10 @@ import sys
 import time
 import config
 from core import browser, index_page, ticket_url, login_page
-from core.captcha import Captcha
+from core.captcha import Captcha, slider_captcha
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import wait
 from selenium.webdriver.support import expected_conditions as ec
-
 from utils import console
 
 
@@ -38,7 +37,7 @@ def has_login():
 class Login:
 
     def __init__(self):
-        self.captcha = Captcha(browser)
+        self.captcha = Captcha()
 
     def login(self):
         # 初始化
@@ -51,5 +50,6 @@ class Login:
         browser.find_element_by_id('J-login').click()
         time.sleep(0.5)
         # 验证滑块验证码
-        self.captcha.slider_captcha()
-        time.sleep(1)
+        slider_captcha()
+        # 等待跳转到首页
+        wait.WebDriverWait(browser, 10).until(lambda driver: driver.current_url.startswith(index_page))
