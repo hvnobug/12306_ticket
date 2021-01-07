@@ -5,6 +5,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 
 import config
+from utils import console
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
@@ -118,3 +119,10 @@ class Browser(webdriver.Chrome):
         time.sleep(5)
         # 截图
         self.save_screenshot(f'./{file_name}')
+
+    def check_error_page(self):
+        from core import error_page
+        if self.current_url.startswith(error_page):
+            # IP 被限制,等待五分钟后重试
+            console.print('[yellow]网络错误,五分钟后重试![/yellow]')
+            time.sleep(301)

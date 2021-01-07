@@ -1,21 +1,38 @@
+import sys
 import time
 import config
-from core import browser
+from core import browser, index_page, ticket_url, login_page
 from core.captcha import Captcha
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import wait
 from selenium.webdriver.support import expected_conditions as ec
 
-login_page = 'https://kyfw.12306.cn/otn/resources/login.html'
+from utils import console
 
 
 def _init():
     # 现在使用这个url地址
     browser.get(login_page)
+    time.sleep(1)
+    if browser.find_el_if_exist('ERROR', by=By.ID) is not None:
+        console.print('[red]12306请求过于频繁,请稍等重试 . . . [/red]')
+        sys.exit(1)
     # 等待用户密码登录按钮可以点击,切换到用户密码登录 Tab
     wait.WebDriverWait(browser, 5).until(
         ec.element_to_be_clickable((By.CLASS_NAME, 'login-hd-account'))).click()
     time.sleep(1)
+
+
+def has_login():
+    """
+    判断用户是否登录
+    """
+    url = browser.current_url
+    if url.startswith(index_page):
+        return browser.find_el_if_exist('#J-header-logout > a.logout') is not None
+    if url.startswith(ticket_url):
+        return browser.find_el_if_exist('#J-header-logout > a:nth-child(3)') is not None
+    return False
 
 
 class Login:

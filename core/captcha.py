@@ -68,9 +68,8 @@ class Captcha:
                     if resp_json and resp_json.get("code") is 0:
                         return code_xy(resp_json.get("data")).split(',')
             except Exception as e:
-                console.print('[red]打码失败[/red]')
+                console.print(f'[red]打码失败[/red] - [{count}]')
                 print(e)
-                raise e
 
 
 def code_xy(select):

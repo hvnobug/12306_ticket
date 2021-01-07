@@ -17,6 +17,12 @@
 
 > 目前只测试过 `windows`,`linux`和`macos`没有测试过
 
+### ChromeDriver
+
+`ChromeDriver`[下载地址](https://npm.taobao.org/mirrors/chromedriver/)
+
+> 跟 `Chrome` 大版本保持一致 
+
 #### 安装 pip 依赖
 
 ```bash
