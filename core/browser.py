@@ -1,7 +1,8 @@
-import time
 import random
+import time
+
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
 
 import config
@@ -74,6 +75,7 @@ options.add_experimental_option("excludeSwitches", ['enable-automation'])
 
 
 class Browser(webdriver.Chrome):
+
     def __init__(self):
         super().__init__(chrome_options=options, executable_path=config.chrome_path)
         # 浏览器最大化，也可以不设置
@@ -91,8 +93,18 @@ class Browser(webdriver.Chrome):
         """)
         # 改写 `plugins`
         self.execute_script("""
-        Object.defineProperty(navigator, "plugins", {
-          get: () => new Array(Math.floor(Math.random() * 6) + 1),
+     Object.defineProperty(navigator, "plugins", {
+            get: () => [
+                {
+                    name: "Chrome PDF Plugin"
+                },
+                {
+                    name: "Chrome PDF Viewer"
+                },
+                {
+                    name: "CNative Client"
+                }
+            ],
         });
         """)
         # 改写`webdriver`
@@ -120,27 +132,11 @@ class Browser(webdriver.Chrome):
         super().refresh()
         self._anti_detection()
 
-    # 封装一个函数，用来判断属性值是否存在
     def find_el_if_exist(self, value, by=By.CSS_SELECTOR):
-        """
-        用来判断元素标签是否存在，
-        """
-        try:
-            return self.find_element(by=by, value=value)
-        except NoSuchElementException as _:
-            # 发生了 NoSuchElementException 异常，说明页面中未找到该元素，返回 None
-            return None
+        return find_el_if_exist(self, value, by)
 
-    # 封装一个函数，用来判断属性值是否存在
     def find_els_if_exist(self, value, by=By.CSS_SELECTOR):
-        """
-        用来判断元素标签是否存在，
-        """
-        try:
-            return self.find_elements(by=by, value=value)
-        except NoSuchElementException as _:
-            # 发生了 NoSuchElementException 异常，说明页面中未找到该元素，返回 None
-            return None
+        return find_els_if_exist(self, value, by)
 
     def screenshot(self, file_name=f'{int(time.time() * 1000)}.png'):
         # 截图
@@ -148,9 +144,55 @@ class Browser(webdriver.Chrome):
         path = os.path.join(os.path.dirname(__file__), f'../{file_name}')
         self.save_screenshot(path)
 
-    def check_error_page(self):
+    def check_error(self):
+        """
+        检查是否被关小黑屋 。。。
+        """
         from core import error_page
         if self.current_url.startswith(error_page):
             # IP 被限制,等待五分钟后重试
             console.print('[yellow]网络错误,五分钟后重试![/yellow]')
-            time.sleep(301)
+            self.wait_unblock()
+
+    def wait_unblock(self):
+        """
+        关小黑屋后,在这里等待。。。
+        """
+        from core import ticket_url
+        console.print("欢迎来到小黑屋 。。。")
+        console.print("""|-----------------------------------------------------------------------|""")
+        console.print("""|    o   \ o /  _ o         __|    \ /     |__        o _  \ o /   o    |""")
+        console.print("""|   /|\    |     /\   ___\o   \o    |    o/    o/__   /\     |    /|\   |""")
+        console.print("""|   / \   / \   | \  /)  |    ( \  /o\  / )    |  (\  / |   / \   / \   |""")
+        console.print("""|-----------------------------------------------------------------------|""")
+        time.sleep(config.block_time)
+        self.get(ticket_url)
+        time.sleep(1)
+
+
+def find_el_if_exist(self, value, by=By.CSS_SELECTOR):
+    """
+    @param self   this
+    @param value 查询条件
+    @param by    查询方式
+    判断元素标签是否存在,如果存在就返回,不存在就返回 None
+    """
+    try:
+        return self.find_element(by=by, value=value)
+    except WebDriverException:
+        # 发生了 NoSuchElementException 异常，说明页面中未找到该元素，返回 None
+        return None
+
+
+def find_els_if_exist(self, value, by=By.CSS_SELECTOR):
+    """
+    @param self   this
+    @param value 查询条件
+    @param by    查询方式
+    判断元素标签是否存在,如果存在就返回,不存在就返回 None
+    """
+    try:
+        return self.find_elements(by=by, value=value)
+    except WebDriverException:
+        # 发生了 NoSuchElementException 异常，说明页面中未找到该元素，返回 []
+        return []

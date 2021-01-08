@@ -11,6 +11,7 @@ from selenium.webdriver.support.select import Select
 
 import config
 from core import browser, tk, ticket_url, pay_order_url
+from core.browser import find_el_if_exist
 from core.login import has_login
 from utils import console
 from utils.message import send_mail, send_server_chan
@@ -55,14 +56,14 @@ class Ticket:
 
     def check(self):
         count = 0
-        last_refresh_time = datetime.now().timestamp()
+        # last_refresh_time = datetime.now().timestamp()
         time.sleep(1)
         while self._running:
             # 检查时候登录失效, 判断是否存在登出按钮
             if not has_login():
                 return
             # 检查是否出错
-            browser.check_error_page()
+            browser.check_error()
 
             # 随机休眠 0.3-1 秒
             # random_time = random.randint(300, 1000) / 1000
@@ -90,16 +91,8 @@ class Ticket:
                 self._check_ticket()
             else:
                 # 使用睡眠方案,提前两分钟唤醒,登录超时会自动登录
-                """
-                # 为了防止长时间不操作,session 失效
-                now_timestamp = datetime.now().timestamp()
-                if last_refresh_time - now_timestamp >= 180:
-                    last_refresh_time = now_timestamp
-                    console.print(":raccoon:", f'[{now}] 刷新浏览器')
-                    browser.refresh()
-                """
-                # 取今天日期 当前时间小于开始抢票时间
                 now_time_str = now.strftime(time_format_str)
+                # 取今天日期 当前时间小于开始抢票时间
                 if now_time_str < config.start_time:
                     date_str = now.strftime(date_format_str)
                 # 取明天的日期
@@ -175,96 +168,76 @@ class Ticket:
             wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'qr_submit_id'))).click()
             # 等待跳转到支付页面, 如果超时未跳转, 说明订单生成失败
             wait.WebDriverWait(browser, 10).until(lambda driver: driver.current_url.startswith(pay_order_url))
-        except WebDriverException:
+        except WebDriverException as e:
+            browser.screenshot(f'{datetime.now().strftime(datetime_format_str)}-error.png')
             # 核信息对话框,当确认订单按钮不可用
             check_el = browser.find_el_if_exist('content_checkticketinfo_id', by=By.ID)
             if check_el and check_el.is_displayed():
                 check_text = check_el.find_element_by_id('sy_ticket_num_id').text
                 console.print(check_text, style="bold red")
-                raise
+                raise e
             # 订单提交失败会出现提示框
             notice_el = browser.find_el_if_exist('content_transforNotice_id', by=By.ID)
             if notice_el and notice_el.is_displayed():
                 title = browser.find_element_by_css_selector('#orderResultInfo_id > div > span').text
                 content = notice_el.find_element_by_tag_name('p').text
                 console.print(f'[red]{title}[/red]', content)
-                raise
+                raise e
         # 截取屏幕,订单信息页
         print('预订成功,正在截取屏幕 . . .')
         browser.screenshot(
             f'{self.fs}_{self.ts}_{config.from_time.replace("-", "")}_{self._ticket_info["train"].lower()}.png'
         )
 
-    def _try_submit(self, index, left_tr, train_name):
+    def _try_submit(self, train_trs):
         """
         尝试提交
-        :param index: 表格索引
-        :param left_tr: 列车信息行
-        :param train_name: 列车车次名称
+        :param train_trs: 列车车次名称
         """
-        left_tr_id = left_tr.get_attribute('id')
-        submit_btn = browser.find_el_if_exist('#' + left_tr_id + ' > td.no-br > a')
-        if submit_btn:
-            ss, es, st, et, du = tk.get_train_info(index)
-            if str.startswith(left_tr_id, 'ticket_'):
+        for train_tr in train_trs:
+            submit_btn = find_el_if_exist(train_tr, 'td.no-br > a')
+            ss, es, st, et, du, tn = tk.get_train_info(train_tr)
+            if submit_btn and submit_btn:
+                left_tr_id = train_tr.get_attribute('id')
                 serial_num = left_tr_id[len('ticket_'):].split('_')[0]
                 # 座位类型是否匹配
                 for seat_type in config.seat_types:
                     if tk.seat_type_dict[seat_type]:
-                        seat_selector = '#' + tk.seat_type_dict[seat_type]["code"] + '_' + serial_num
-                        seat = left_tr.find_element_by_css_selector(seat_selector)
+                        seat_type_id = tk.seat_type_dict[seat_type]["code"] + '_' + serial_num
+                        seat = train_tr.find_element_by_id(seat_type_id)
                         if seat:
                             ticket_info = {
                                 "address": f"{ss} - {es}", "time": f"{st} - {et}", "duration": du,
-                                'train': train_name
+                                'train': tn
                             }
-
                             # 判断是否有余票,如果有余票就尝试提交
-                            def try_submit(seat_el):
-                                seat_text = seat_el.text
-                                if seat_text == '有' or re.match("^\\d+$", seat_text):
-                                    self._running = False
-                                    ticket_info['seat_type'] = seat_type
-                                    ticket_info['value'] = seat_text
-                                    self._ticket_info = ticket_info
-                                    console.print(tk.table_ticket_info(ticket_info))
-                                    submit_btn.click()
-                                    return True
-                                return False
-
-                            seat_div = browser.find_el_if_exist(seat_selector + ' > div')
-                            if try_submit(seat_div if seat_div else seat):
+                            seat_text = seat.text
+                            if seat_text == '有' or re.match("^\\d+$", seat_text):
+                                self._running = False
+                                ticket_info['seat_type'] = seat_type
+                                ticket_info['value'] = seat_text
+                                self._ticket_info = ticket_info
+                                console.print(tk.table_ticket_info(ticket_info))
+                                submit_btn.click()
                                 return True
-                    else:
-                        console.print(f"未找到坐席类型 :[red] {seat_type} [/red]")
-                        sys.exit(-1)
-                    console.print(f":vampire: {config.from_time} - {train_name} - {seat_type}", "[red]暂无余票[/red]")
-        else:
-            console.print(f":vampire: {config.from_time} - {train_name}", "[red]暂无余票[/red]")
+                        else:
+                            console.print(f"未找到坐席类型 :[red] {seat_type} [/red]")
+                            console.print("请按照要求配置坐席类型:", ",".join(tk.seat_type_dict.keys()))
+                            sys.exit(-1)
+                    console.print(f":vampire: {config.from_time} - {tn} - {seat_type}", "[red]暂无余票[/red]")
+            else:
+                console.print(f":vampire: {config.from_time} - {tn}", "[red]暂无余票[/red]")
         return False
 
     def _check_ticket(self):
         """
         检查是否有余票
         """
-        exist_train = False
-        left_tr_list = browser.find_els_if_exist('#queryLeftTable > tr')
-        # 真实的列车信息行索引
-        train_row_index = 0
-        for index in range(len(left_tr_list)):
-            # 跳过空行
-            if index % 2 == 0:
-                left_tr = left_tr_list[index]
-                train_tr = left_tr_list[index + 1]
-                train_name = train_tr.get_attribute('datatran')
-                for t in config.trains:
-                    if t == train_name:
-                        exist_train = True
-                        if self._try_submit(train_row_index, left_tr, train_name):
-                            return
-                train_row_index += 1
-        if not exist_train:
+        train_trs = tk.find_train_info_trs()
+        if len(train_trs) == 0:
             console.print(
                 ':raccoon: [yellow]未查询到车次信息[/yellow]: ',
                 config.from_time, f"[{str.join(',', config.trains)}]"
             )
+        else:
+            self._try_submit(train_trs)

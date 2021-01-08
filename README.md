@@ -1,29 +1,29 @@
 ## Selenium 12306 自动抢票
 
-### Python support
-  - [ ] 2.7.10 - 2.7.15
+### Python版本支持
   - [x] 3.6 - 3.8
-  - [ ] 2.7.9
+  - [ ] 2.7.x
 
-### Feature
+### 特性
   - [x] 自动打码
   - [x] 自动登录
   - [x] 准点预售和捡漏
   - [ ] 智能候补
-  - [ ] 邮件通知
+  - [x] 邮件通知
   - [x] server酱通知
   
-### Installation
+### 安装
 
 > 目前只测试过 `windows`,`linux`和`macos`没有测试过
 
-### ChromeDriver
+
+#### ChromeDriver
 
 `ChromeDriver`[下载地址](https://npm.taobao.org/mirrors/chromedriver/)
 
 > 跟 `Chrome` 大版本保持一致即可
 
-#### 安装 pip 依赖
+#### pip依赖
 
 ```bash
 pip install -r requirement.txt
@@ -95,13 +95,19 @@ end_time = '23:00:00'
 chrome_path = 'D:\\chromedriver.exe'
 ```
 
-### Code Server
+#### 运行 main.py
 
-> 默认使用[12306_code_server](https://github.com/YinAoXiong/12306_code_server)云打码服务器
+```bash
+python main.py
+```
 
-也可以自建打码服务器:
+### 打码服务器
 
-#### docker 部署
+> 默认使用 [12306_code_server](https://github.com/YinAoXiong/12306_code_server) 提供的云打码服务器
+
+也可以自建打码服务器,可以使用 `docker` 或 `docker-compose` 方式部署:
+
+#### Docker 部署
 
 ```bash
 docker run -d -p 8080:80 --name 12306 yinaoxiong/12306_code_server
@@ -124,10 +130,15 @@ services:
 
 然后修改 `config.py` 的 `code_server` 配置项
 
-### Usage
+### 运行截图
 
-```bash
-python main.py
-```
+![](https://github.com/hvnobug/12306_ticket/blob/master/images/12306_ticket_screenshot.png?raw=true)
 
-![](images/12306_ticket_screenshot.png)
+### 鸣谢
+
+* [12306](https://github.com/gzldc/12306): 12306抢票脚本
+* [12306_code_server](https://github.com/YinAoXiong/12306_code_server): 自托管的12306验证码识别服务
+
+### License
+
+[MIT](https://github.com/hvnobug/12306_ticket/blob/master/LICENSE)

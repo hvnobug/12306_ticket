@@ -1,4 +1,6 @@
 from rich.table import Table
+from selenium.webdriver.common.by import By
+
 import config
 from core import browser
 
@@ -189,21 +191,32 @@ def html_ticket_info(ti):
     """
 
 
-def get_train_info(index):
+def get_train_info(train_trs):
     """
     获取列车信息
-    :param index: 表格索引
+    :param train_trs: 表格列
     """
-    train_num_id = '#train_num_' + str(index)
-    cds = train_num_id + ' > div.cds'
-    cdz = train_num_id + ' > div.cdz'
+    cds = 'div.cds'
+    cdz = 'div.cdz'
 
     def text_el(prefix, number):
         return f"{prefix}  > strong:nth-child({number})"
 
-    ss = browser.find_el_if_exist(text_el(cdz, 1)).text
-    es = browser.find_el_if_exist(text_el(cdz, 2)).text
-    st = browser.find_el_if_exist(text_el(cds, 1)).text
-    et = browser.find_el_if_exist(text_el(cds, 2)).text
-    du = browser.find_el_if_exist(train_num_id + '> div.ls > strong').text
-    return ss, es, st, et, du
+    ss = train_trs.find_element_by_css_selector(text_el(cdz, 1)).text
+    es = train_trs.find_element_by_css_selector(text_el(cdz, 2)).text
+    st = train_trs.find_element_by_css_selector(text_el(cds, 1)).text
+    et = train_trs.find_element_by_css_selector(text_el(cds, 2)).text
+    du = train_trs.find_element_by_css_selector('div.ls > strong').text
+    tn = train_trs.find_element_by_css_selector('.train .number').text
+    return ss, es, st, et, du, tn
+
+
+def find_train_info_trs():
+    """查询表格中的车次信息"""
+    trs = []
+    for t in config.trains:
+        number = browser.find_el_if_exist(t, by=By.LINK_TEXT)
+        if number is None:
+            continue
+        trs.append(number.find_element_by_xpath('../../../../..'))
+    return trs

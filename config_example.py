@@ -57,3 +57,5 @@ start_time = '05:00:00'
 end_time = '23:00:00'
 # ChromeDriver 运行路径
 chrome_path = 'D:\\chromedriver.exe'
+# 小黑屋时间,被 12306关小黑屋后,多长时间后重试,单位是秒,默认300秒,即5分钟
+block_time = 300

@@ -1,5 +1,6 @@
 import sys
 import time
+
 import requests
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver import ActionChains
@@ -57,6 +58,9 @@ class Captcha:
 
 
 def code_xy(select):
+    """
+    根据打码服务器返回的 offset 获取页面中真实的坐标
+    """
     post = []
     offsets_x = 0  # 选择的答案的left值,通过浏览器点击8个小图的中点得到的,这样基本没问题
     offsets_y = 0  # 选择的答案的top值
@@ -94,6 +98,7 @@ def code_xy(select):
     return rand_code
 
 
+# 滑块验证码
 def slider_captcha():
     try_time = 1
     div = browser.find_el_if_exist('nc_1_n1z', by=By.ID)
