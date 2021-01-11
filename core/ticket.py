@@ -18,6 +18,41 @@ from utils.message import send_mail, send_server_chan
 from utils.time import datetime_format_str, time_format_str, date_format_str
 
 
+def check_alert():
+    alert_el = browser.find_el_if_exist('content_defaultwarningAlert_id', by=By.ID)
+    if alert_el and alert_el.is_enabled():
+        btn = browser.find_el_if_exist('qd_closeDefaultWarningWindowDialog_id', by=By.ID)
+        if btn and btn.is_enabled():
+            btn.click()
+
+
+def show_alert_info(text=None, split='  '):
+    """
+    @param text 添加到打印信息头部
+    @param split 打印信息分隔符
+    打印通知警告信息
+    """
+    print_info = []
+    if text:
+        print_info.append(text)
+
+    # 对话框
+    check_el = browser.find_el_if_exist('content_checkticketinfo_id', by=By.ID)
+    if check_el and check_el.is_displayed():
+        check_text = check_el.find_element_by_id('sy_ticket_num_id').text
+        console.print(check_text, style="bold red")
+    # 提示框
+    notice_el = browser.find_el_if_exist('content_transforNotice_id', by=By.ID)
+    if notice_el and notice_el.is_displayed():
+        el = browser.find_el_if_exist('#orderResultInfo_id > div > span')
+        if el:
+            print_info.append(f'[red]{el.text}[/red]')
+        el = find_el_if_exist(notice_el, 'p', by=By.TAG_NAME)
+        if el:
+            print_info.append(el.text)
+    console.print(split.join(print_info))
+
+
 class Ticket:
     def __init__(self):
         self._ticket_info = None
@@ -52,12 +87,12 @@ class Ticket:
         })
         # 设置完 cookie 后,表单会自动根据 cookie 信息填充
         time.sleep(0.5)
-        browser.get(ticket_url)
 
     def check(self):
-        count = 0
-        # last_refresh_time = datetime.now().timestamp()
+        browser.get(ticket_url)
         time.sleep(1)
+        check_alert()
+        count = 0
         while self._running:
             # 检查时候登录失效, 判断是否存在登出按钮
             if not has_login():
@@ -89,6 +124,12 @@ class Ticket:
                 count += 1
                 console.print(":raccoon:", f'第 [red]{count}[/red] 次点击查询 . . .')
                 self._check_ticket()
+                # 每查询 1000 次刷新一次浏览器
+                if count % 1000 == 0:
+                    browser.refresh()
+                    time.sleep(1)
+                    # 检测是否出现提醒框
+                    check_alert()
             else:
                 # 使用睡眠方案,提前两分钟唤醒,登录超时会自动登录
                 now_time_str = now.strftime(time_format_str)
@@ -105,16 +146,17 @@ class Ticket:
                 console.print(f"程序将于 [{next_run_datetime.strftime(datetime_format_str)}] 重新启动 !", style="bold green")
                 time.sleep(sleep_second)
         # 创建订单
-        self._create_order()
-        message = "恭喜您，抢到票了，请及时前往12306支付订单！"
-        console.print(f":smiley: {message}")
-        # 发送通知邮件
-        if config.email['enable'] is True:
-            send_mail(tk.html_ticket_info(self._ticket_info), html=True)
-        # 发送 server 酱通知
-        if config.server_chan['enable'] is True:
-            send_server_chan(tk.md_ticket_info(self._ticket_info))
-        sys.exit(0)
+        if self._create_order():
+            message = "恭喜您，抢到票了，请及时前往12306支付订单！"
+            console.print(f":smiley: {message}")
+            # 发送通知邮件
+            if config.email['enable'] is True:
+                send_mail(tk.html_ticket_info(self._ticket_info), html=True)
+            # 发送 server 酱通知
+            if config.server_chan['enable'] is True:
+                send_server_chan(tk.md_ticket_info(self._ticket_info))
+            sys.exit(0)
+        self.check()
 
     def _create_order(self):
         """
@@ -153,41 +195,31 @@ class Ticket:
                     time.sleep(0.5)
         if passenger_index == 1:
             console.print("未找到乘客信息 ... 无法选择乘客和坐席", style="bold red")
-        print('正在提交订单 . . .')
-        wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'submitOrder_id'))).click()
-        time.sleep(1)
-        # 通知对话框
-        notice_el = browser.find_el_if_exist('content_transforNotice_id', by=By.ID)
-        if notice_el and notice_el.is_displayed():
-            notice_content = browser.find_element_by_css_selector('#orderResultInfo_id > div > span').text
-            console.print("确认订单失败:", notice_content, style="bold yellow")
-            sys.exit(-1)
         try:
+            print('正在提交订单 . . .')
+            wait.WebDriverWait(browser, 10).until(ec.element_to_be_clickable((By.ID, 'submitOrder_id'))).click()
+            time.sleep(1)
             # 确认提交订单
             print('正在确认订单 . . .')
-            wait.WebDriverWait(browser, 5).until(ec.element_to_be_clickable((By.ID, 'qr_submit_id'))).click()
+            wait.WebDriverWait(browser, 10).until(ec.element_to_be_clickable((By.ID, 'qr_submit_id'))).click()
             # 等待跳转到支付页面, 如果超时未跳转, 说明订单生成失败
             wait.WebDriverWait(browser, 10).until(lambda driver: driver.current_url.startswith(pay_order_url))
+            submit_btn = browser.find_el_if_exist('qr_submit_id', by=By.ID)
+            if not submit_btn or not submit_btn.is_displayed():
+                console.print(f'该车次无法提交[{self._ticket_info["train"]}]。', style="bold yellow")
+                config.trains.remove(self._ticket_info["train"])
+                show_alert_info('该车次无法提交[{self._ticket_info["train"]}]。', '\n')
+                return False
         except WebDriverException as e:
             browser.screenshot(f'{datetime.now().strftime(datetime_format_str)}-error.png')
-            # 核信息对话框,当确认订单按钮不可用
-            check_el = browser.find_el_if_exist('content_checkticketinfo_id', by=By.ID)
-            if check_el and check_el.is_displayed():
-                check_text = check_el.find_element_by_id('sy_ticket_num_id').text
-                console.print(check_text, style="bold red")
-                raise e
-            # 订单提交失败会出现提示框
-            notice_el = browser.find_el_if_exist('content_transforNotice_id', by=By.ID)
-            if notice_el and notice_el.is_displayed():
-                title = browser.find_element_by_css_selector('#orderResultInfo_id > div > span').text
-                content = notice_el.find_element_by_tag_name('p').text
-                console.print(f'[red]{title}[/red]', content)
-                raise e
+            show_alert_info('提交订单失败:\n')
+            raise e
         # 截取屏幕,订单信息页
         print('预订成功,正在截取屏幕 . . .')
         browser.screenshot(
             f'{self.fs}_{self.ts}_{config.from_time.replace("-", "")}_{self._ticket_info["train"].lower()}.png'
         )
+        return True
 
     def _try_submit(self, train_trs):
         """
