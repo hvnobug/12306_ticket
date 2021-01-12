@@ -215,8 +215,10 @@ def find_train_info_trs():
     """查询表格中的车次信息"""
     trs = []
     for t in config.trains:
-        number = browser.find_el_if_exist(t, by=By.LINK_TEXT)
-        if number is None:
+        # 可能会出现相同名称车次
+        numbers = browser.find_els_if_exist(t, by=By.LINK_TEXT)
+        if numbers is None or len(numbers) is 0:
             continue
-        trs.append(number.find_element_by_xpath('../../../../..'))
+        for number in numbers:
+            trs.append(number.find_element_by_xpath('../../../../..'))
     return trs

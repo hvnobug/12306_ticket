@@ -110,7 +110,6 @@ class Ticket:
             def convert_time_to_datetime(time_str):
                 now_date_str = now.strftime(date_format_str)
                 return datetime.strptime(f"{now_date_str} {time_str}", datetime_format_str)
-
             start_ts = convert_time_to_datetime(config.start_time).timestamp()
             end_ts = convert_time_to_datetime(config.end_time).timestamp()
             now_ts = now.timestamp()
